@@ -37,7 +37,7 @@ def parse_opt():
     parser.add_argument('--TRAIN_GPU_ID', type=int, default=3)
     parser.add_argument('--TEST_GPU_ID', type=int, default=3)
     parser.add_argument('--BATCH_SIZE', type=int, default=200)
-    parser.add_argument('--VAL_BATCH_SIZE', type=int, default=1000)
+    parser.add_argument('--VAL_BATCH_SIZE', type=int, default=200)
     parser.add_argument('--NUM_OUTPUT_UNITS', type=int, default=3000)
     parser.add_argument('--MAX_WORDS_IN_QUESTION', type=int, default=15)
     parser.add_argument('--MAX_ITERATIONS', type=int, default=50000)
