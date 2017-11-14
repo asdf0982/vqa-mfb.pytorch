@@ -23,9 +23,10 @@ class MfhBaseline(nn.Module):
     def forward(self, data, word_length, img_feat, mode):
         if mode == 'val':
             self.batch_size = self.opt.VAL_BATCH_SIZE
+            self.training = False
         else:
             self.batch_size = self.opt.BATCH_SIZE
-            # word_length = word_length.numpy()
+            self.training = True
         data_out_1 = Variable(torch.zeros(self.batch_size, self.opt.LSTM_UNIT_NUM)).cuda()
         # data_out_2 = Variable(torch.zeros(self.batch_size, self.opt.LSTM_UNIT_NUM)).cuda()
         """sort(desc)"""
@@ -45,7 +46,7 @@ class MfhBaseline(nn.Module):
             data_out_1[i]=data[int(word_length[i]) - 1][i]                  # get output 200,1024
         """unsort"""
         data_out_1 = data_out_1[unsort_idx]
-        q_feat = F.dropout(data_out_1, self.opt.LSTM_DROPOUT_RATIO)
+        q_feat = F.dropout(data_out_1, self.opt.LSTM_DROPOUT_RATIO, training=self.training)
         
         # data = F.dropout(data, self.opt.LSTM_DROPOUT_RATIO)
         # """order 2"""
@@ -64,17 +65,17 @@ class MfhBaseline(nn.Module):
         mfb_q_o2_proj = self.Linear_dataproj1(q_feat)                       # data_out (batch, 5000)
         mfb_i_o2_proj = self.Linear_imgproj1(img_feat.float())              # img_feature (batch, 5000)
         mfb_iq_o2_eltwise = torch.mul(mfb_q_o2_proj, mfb_i_o2_proj)
-        mfb_iq_o2_drop = F.dropout(mfb_iq_o2_eltwise, self.opt.MFB_DROPOUT_RATIO)
+        mfb_iq_o2_drop = F.dropout(mfb_iq_o2_eltwise, self.opt.MFB_DROPOUT_RATIO, training=self.training)
         mfb_iq_o2_resh = mfb_iq_o2_drop.view(-1, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)
         mfb_o2_out = torch.squeeze(torch.sum(mfb_iq_o2_resh, 3))                            # sum pool
         mfb_o2_out = torch.sqrt(F.relu(mfb_o2_out)) - torch.sqrt(F.relu(-mfb_o2_out))       # signed sqrt
         mfb_o2_out = F.normalize(mfb_o2_out)
 
-        mfb_q_o3_proj = self.Linear_dataproj2(q_feat)                       # data_out (batch, 5000)
-        mfb_i_o3_proj = self.Linear_imgproj2(img_feat.float())              # img_feature (batch, 5000)
+        mfb_q_o3_proj = self.Linear_dataproj2(q_feat)                   # data_out (batch, 5000)
+        mfb_i_o3_proj = self.Linear_imgproj2(img_feat.float())          # img_feature (batch, 5000)
         mfb_iq_o3_eltwise = torch.mul(mfb_q_o3_proj, mfb_i_o3_proj)
         mfb_iq_o3_eltwise = torch.mul(mfb_iq_o3_eltwise, mfb_iq_o2_drop)
-        mfb_iq_o3_drop = F.dropout(mfb_iq_o3_eltwise, self.opt.MFB_DROPOUT_RATIO)
+        mfb_iq_o3_drop = F.dropout(mfb_iq_o3_eltwise, self.opt.MFB_DROPOUT_RATIO, training=self.training)
         mfb_iq_o3_resh = mfb_iq_o3_drop.view(-1, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)
         mfb_o3_out = torch.squeeze(torch.sum(mfb_iq_o3_resh, 3))                            # sum pool
         mfb_o3_out = torch.sqrt(F.relu(mfb_o3_out)) - torch.sqrt(F.relu(-mfb_o3_out))       # signed sqrt
