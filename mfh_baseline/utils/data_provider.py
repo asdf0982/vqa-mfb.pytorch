@@ -2,12 +2,6 @@
 import numpy as np
 import re, json, random
 import config
-# import threading
-# import time
-# import sys
-# import os
-# import skimage
-# import torch
 import torch.utils.data as data
 
 QID_KEY_SEPARATOR = '/'

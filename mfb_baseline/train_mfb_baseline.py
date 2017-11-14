@@ -107,11 +107,13 @@ def train():
         answer = np.squeeze(answer, axis=0)
         epoch = epoch.numpy()
 
+        data = Variable(data).cuda()
+        word_length = word_length.cuda()
         img_feature = Variable(feature).cuda()
-        label = Variable(answer).cuda()
+        label = Variable(answer).cuda().float()
         optimizer.zero_grad()
         pred = model(data, word_length, img_feature, 'train')
-        loss = criterion(pred, label.float())
+        loss = criterion(pred, label)
         loss.backward()
         optimizer.step()
         train_loss[iter_idx] = loss.data[0]
@@ -136,6 +138,7 @@ def train():
 
 opt = config.parse_opt()
 torch.cuda.set_device(opt.TRAIN_GPU_ID)
+
 folder = 'mfb_baseline_%s'%opt.TRAIN_DATA_SPLITS
 if not os.path.exists('./%s'%folder):
     os.makedirs('./%s'%folder)
@@ -164,7 +167,7 @@ model = MfbBaseline(opt)
 model.cuda()
 '''init model parameter'''
 for name, param in model.named_parameters(): 
-    if name.find("bias") == -1:        # LSTM bias can't init by xavier
+    if name.find("bias") == -1:        # bias can't init by xavier
         init.xavier_uniform(param)
 optimizer = optim.Adam(model.parameters(), lr=opt.INIT_LERARNING_RATE)
 

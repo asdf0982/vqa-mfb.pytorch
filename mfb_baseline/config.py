@@ -53,7 +53,6 @@ def parse_opt():
     parser.add_argument('--LSTM_UNIT_NUM', type=int, default=1024)
     parser.add_argument('--LSTM_DROPOUT_RATIO', type=float, default=0.3)
     parser.add_argument('--MFB_DROPOUT_RATIO', type=float, default=0.1)
-
     parser.add_argument('--TRAIN_DATA_SPLITS', type=str, default='train')
     parser.add_argument('--QUESTION_VOCAB_SPACE', type=str, default='train')
     parser.add_argument('--ANSWER_VOCAB_SPACE', type=str, default='train')
