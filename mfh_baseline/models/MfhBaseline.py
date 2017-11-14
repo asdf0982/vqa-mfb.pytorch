@@ -23,10 +23,8 @@ class MfhBaseline(nn.Module):
     def forward(self, data, word_length, img_feat, mode):
         if mode == 'val':
             self.batch_size = self.opt.VAL_BATCH_SIZE
-            self.training = False
         else:
             self.batch_size = self.opt.BATCH_SIZE
-            self.training = True
         data_out_1 = Variable(torch.zeros(self.batch_size, self.opt.LSTM_UNIT_NUM)).cuda()
         # data_out_2 = Variable(torch.zeros(self.batch_size, self.opt.LSTM_UNIT_NUM)).cuda()
         """sort(desc)"""

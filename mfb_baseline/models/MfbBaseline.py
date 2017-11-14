@@ -20,10 +20,8 @@ class MfbBaseline(nn.Module):
     def forward(self, data, word_length, img_feature, mode):
         if mode == 'val':
             self.batch_size = self.opt.VAL_BATCH_SIZE
-            self.training = False
         else:
             self.batch_size = self.opt.BATCH_SIZE
-            self.training = True
         data_out = Variable(torch.zeros(self.batch_size, self.opt.LSTM_UNIT_NUM)).cuda()
         """sort(desc)"""
         word_length, sort_idx = torch.sort(word_length, dim=0, descending=True)
