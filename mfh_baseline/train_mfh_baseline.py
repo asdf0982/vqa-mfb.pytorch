@@ -96,11 +96,11 @@ def adjust_learning_rate(optimizer, decay_rate):
         param_group['lr'] = param_group['lr'] * decay_rate
 
 def train():
-    model.train()
     criterion = nn.KLDivLoss(size_average=False)
     train_loss = np.zeros(opt.MAX_ITERATIONS + 1)
     results = []
     for iter_idx, (data, word_length, feature, answer, epoch) in enumerate(train_Loader):
+    	model.train()
         data = np.squeeze(data, axis=0)
         word_length = np.squeeze(word_length, axis=0)
         feature = np.squeeze(feature, axis=0)
