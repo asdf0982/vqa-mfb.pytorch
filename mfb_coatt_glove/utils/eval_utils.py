@@ -124,14 +124,15 @@ def exec_validation(model, opt, mode, folder, it, visualize=False):
 
     print ('Validating...')
     while epoch == 0:
-        t_word, word_length, t_img_feature, t_answer, t_qid_list, t_iid_list, epoch = dp.get_batch_vec() 
+        t_word, word_length, t_img_feature, t_answer, t_glove_matrix, t_qid_list, t_iid_list, epoch = dp.get_batch_vec() 
         word_length = np.sum(word_length,axis=1)
 
-        data = Variable(torch.from_numpy(t_word)).cuda()
+        data = Variable(torch.from_numpy(t_word)).cuda().long()
         word_length = torch.from_numpy(word_length).cuda()
-        img_feature = Variable(torch.from_numpy(t_img_feature)).cuda()
+        img_feature = Variable(torch.from_numpy(t_img_feature)).cuda().float()
         label = Variable(torch.from_numpy(t_answer)).cuda()
-        pred = model(data, word_length, img_feature ,'val')
+        glove = Variable(torch.from_numpy(t_glove_matrix)).cuda().float()
+        pred = model(data, word_length, img_feature, glove, 'val')
         loss = criterion(pred, label.long())
         pred = (pred.data).cpu().numpy()
         loss = (loss.data).cpu().numpy()

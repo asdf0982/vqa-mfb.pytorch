@@ -215,7 +215,10 @@ class VQADataProvider:
         qvec = (np.zeros(self.batchsize*self.max_length)).reshape(self.batchsize,self.max_length)
         cvec = (np.zeros(self.batchsize*self.max_length)).reshape(self.batchsize,self.max_length)
         ivec = (np.zeros(self.batchsize*2048)).reshape(self.batchsize,2048)
-        avec = (np.zeros(self.batchsize*self.opt.NUM_OUTPUT_UNITS)).reshape(self.batchsize,self.opt.NUM_OUTPUT_UNITS)
+        if self.mode == 'val' or self.mode == 'test-dev' or self.mode == 'test':
+            avec = np.zeros(self.batchsize)
+        else:
+            avec = np.zeros((self.batchsize, self.opt.NUM_OUTPUT_UNITS))
 
         for i,qid in enumerate(qid_list):
 
@@ -324,4 +327,4 @@ class VQADataset(data.Dataset):
 
     def __len__(self):
         if self.mode == 'train':
-            return 100000
+            return 200000

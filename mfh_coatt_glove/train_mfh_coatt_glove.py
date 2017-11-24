@@ -11,7 +11,7 @@ import numpy as np
 import os
 import sys
 import config
-from models.MfhBaseline import MfhBaseline
+from models.MfhCoattGlove import MfhCoattGlove
 import utils.data_provider as data_provider
 from utils.data_provider import VQADataProvider
 from utils.eval_utils import exec_validation, drawgraph
@@ -99,20 +99,23 @@ def train():
     criterion = nn.KLDivLoss(size_average=False)
     train_loss = np.zeros(opt.MAX_ITERATIONS + 1)
     results = []
-    for iter_idx, (data, word_length, feature, answer, epoch) in enumerate(train_Loader):
-    	model.train()
+    for iter_idx, (data, word_length, feature, answer, glove, epoch) in enumerate(train_Loader):
+        model.train()
         data = np.squeeze(data, axis=0)
         word_length = np.squeeze(word_length, axis=0)
         feature = np.squeeze(feature, axis=0)
         answer = np.squeeze(answer, axis=0)
+        glove = np.squeeze(glove, axis=0)
         epoch = epoch.numpy()
 
-        data = Variable(data).cuda()
+        data = Variable(data).cuda().long()
         word_length = word_length.cuda()
-        img_feature = Variable(feature).cuda()
+        img_feature = Variable(feature).cuda().float()
         label = Variable(answer).cuda().float()
+        glove = Variable(glove).cuda().float()
+
         optimizer.zero_grad()
-        pred = model(data, word_length, img_feature, 'train')
+        pred = model(data, word_length, img_feature, glove, 'train')
         loss = criterion(pred, label)
         loss.backward()
         optimizer.step()
@@ -127,7 +130,8 @@ def train():
         if iter_idx % opt.CHECKPOINT_INTERVAL == 0 and iter_idx != 0:
             if not os.path.exists('./data'):
                 os.makedirs('./data')
-            save_path = './data/mfh_baseline_iter_' + str(iter_idx) + '.pth'
+            save_path = './data/mfh_coatt_glove_iter_' + str(iter_idx) + '.pth'
+            torch.save(model.state_dict(), save_path)         
         if iter_idx % opt.VAL_INTERVAL == 0 and iter_idx != 0:
             test_loss, acc_overall, acc_per_ques, acc_per_ans = exec_validation(model, opt, mode='val', folder=folder, it=iter_idx)
             print ('Test loss:', test_loss)
@@ -136,13 +140,14 @@ def train():
             results.append([iter_idx, c_mean_loss, test_loss, acc_overall, acc_per_ques, acc_per_ans])
             best_result_idx = np.array([x[3] for x in results]).argmax()
             print ('Best accuracy of', results[best_result_idx][3], 'was at iteration', results[best_result_idx][0])
-            drawgraph(results, folder, opt.MFB_FACTOR_NUM, opt.MFB_OUT_DIM, prefix='mfb_baseline')
+            drawgraph(results, folder, opt.MFB_FACTOR_NUM, opt.MFB_OUT_DIM, prefix='mfh_coatt_glove')
         if iter_idx % opt.TESTDEV_INTERVAL == 0 and iter_idx != 0:
             exec_validation(model, opt, mode='test-dev', folder=folder, it=iter_idx)
+
 opt = config.parse_opt()
 torch.cuda.set_device(opt.TRAIN_GPU_ID)
 
-folder = 'mfh_baseline_%s'%opt.TRAIN_DATA_SPLITS
+folder = 'mfh_coatt_glove_%s'%opt.TRAIN_DATA_SPLITS
 if not os.path.exists('./%s'%folder):
     os.makedirs('./%s'%folder)
 question_vocab, answer_vocab = {}, {}
@@ -164,19 +169,20 @@ opt.quest_vob_size = len(question_vocab)
 opt.ans_vob_size = len(answer_vocab)
 
 train_Data = data_provider.VQADataset(opt.TRAIN_DATA_SPLITS, opt.BATCH_SIZE, folder, opt)
-train_Loader = torch.utils.data.DataLoader(dataset=train_Data, shuffle=True, pin_memory=True, num_workers=1)
+train_Loader = torch.utils.data.DataLoader(dataset=train_Data, shuffle=False, pin_memory=True, num_workers=1)
 
-model = MfhBaseline(opt)
+model = MfhCoattGlove(opt)
 if opt.RESUME:
     print('==> Resuming from checkpoint..')
     checkpoint = torch.load(opt.RESUME_PATH)
     model.load_state_dict(checkpoint)
 else:
-    '''init model parameter'''
+    '''
+    init model parameter
+    '''
     for name, param in model.named_parameters(): 
         if name.find("bias") == -1:        # bias can't init by xavier
             init.xavier_uniform(param)
 model.cuda()
 optimizer = optim.Adam(model.parameters(), lr=opt.INIT_LERARNING_RATE)
-
 train()

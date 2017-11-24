@@ -34,7 +34,7 @@ DATA_PATHS = {
 def parse_opt():
     parser = argparse.ArgumentParser()
     # Data input settings
-    parser.add_argument('--TRAIN_GPU_ID', type=int, default=3)
+    parser.add_argument('--TRAIN_GPU_ID', type=int, default=0)
     parser.add_argument('--TEST_GPU_ID', type=int, default=3)
     parser.add_argument('--BATCH_SIZE', type=int, default=200)
     parser.add_argument('--VAL_BATCH_SIZE', type=int, default=1000)
@@ -43,6 +43,9 @@ def parse_opt():
     parser.add_argument('--MAX_ITERATIONS', type=int, default=50000)
     parser.add_argument('--PRINT_INTERVAL', type=int, default=100)
     parser.add_argument('--CHECKPOINT_INTERVAL', type=int, default=5000)
+    parser.add_argument('--TESTDEV_INTERVAL', type=int, default=45000)
+    parser.add_argument('--RESUME', type=bool, default=False)
+    parser.add_argument('--RESUME_PATH', type=str, default='./data/***.pth')
     parser.add_argument('--VAL_INTERVAL', type=int, default=5000)
     parser.add_argument('--IMAGE_CHANNEL', type=int, default=2048)
     parser.add_argument('--INIT_LERARNING_RATE', type=float, default=0.0007)

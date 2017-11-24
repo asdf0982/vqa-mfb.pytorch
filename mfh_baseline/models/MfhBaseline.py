@@ -35,50 +35,56 @@ class MfhBaseline(nn.Module):
         data = data[sort_idx]
         data = torch.transpose(data, 1, 0).long()                           # N x T -> T x N
         """order 1"""
-        data = F.tanh(self.Embedding(data))                                 # (15,batch,300)
+        data = F.tanh(self.Embedding(data))                                 # (15,N,300)
         """pack"""
         data = nn.utils.rnn.pack_padded_sequence(data, word_length.cpu().numpy(), batch_first=False)
-        data, _ = self.LSTM1(data)                                          # (15,batch,1024)
+        data, _ = self.LSTM1(data)                                          # (15,N,1024)
         """unpack"""
         data = nn.utils.rnn.pad_packed_sequence(data, batch_first=False)
-        data = data[0]                                                      # get output 15,200,1024
+        data = data[0]                                                      # get output 15,N,1024
         for i in range(self.batch_size):
-            data_out_1[i]=data[int(word_length[i]) - 1][i]                  # get output 200,1024
+            data_out_1[i]=data[int(word_length[i]) - 1][i]                  # get output N,1024
         """unsort"""
-        data_out_1 = data_out_1[unsort_idx]
+        data_out_1 = data_out_1[unsort_idx]                                 # N x 1024
         q_feat = self.Dropout1(data_out_1)
         
         # data = F.dropout(data, self.opt.LSTM_DROPOUT_RATIO)
         # """order 2"""
         # data = nn.utils.rnn.pack_padded_sequence(data, word_length, batch_first=False)
-        # data, _ = self.LSTM2(data)                                   # (15,batch,1024)
+        # data, _ = self.LSTM2(data)                                   # (15,N,1024)
         # data = nn.utils.rnn.pad_packed_sequence(data, batch_first=False)
-        # data = data[0]                                              # get output 15,200,1024
+        # data = data[0]                                              # get output 15,N,1024
         # for i in range(self.batch_size):
-        #     data_out_2[i]=data[int(word_length[i]) - 1][i]          # get output 200,1024
+        #     data_out_2[i]=data[int(word_length[i]) - 1][i]          # get output N,1024
         # data_out_2 = F.dropout(data_out_2, self.opt.LSTM_DROPOUT_RATIO)
         # """unsort"""
         # data_out_1 = data_out_1[torch.LongTensor(unsort_idx).cuda()]
         # data_out_2 = data_out_2[torch.LongTensor(unsort_idx).cuda()]          
-        # q_feat = torch.cat((data_out_1, data_out_2), 1)             # 200,1024*2
+        # q_feat = torch.cat((data_out_1, data_out_2), 1)             # N,1024*2
 
-        mfb_q_o2_proj = self.Linear_dataproj1(q_feat)                       # data_out (batch, 5000)
-        mfb_i_o2_proj = self.Linear_imgproj1(img_feat.float())              # img_feature (batch, 5000)
+        mfb_q_o2_proj = F.elu(self.Linear_dataproj1(q_feat))                       # data_out (N, 5000)
+        mfb_i_o2_proj = F.elu(self.Linear_imgproj1(img_feat.float()))              # img_feature (N, 5000)
         mfb_iq_o2_eltwise = torch.mul(mfb_q_o2_proj, mfb_i_o2_proj)
         mfb_iq_o2_drop = self.Dropout2(mfb_iq_o2_eltwise)
-        mfb_iq_o2_resh = mfb_iq_o2_drop.view(-1, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)
-        mfb_o2_out = torch.squeeze(torch.sum(mfb_iq_o2_resh, 3))                            # sum pool
+        mfb_iq_o2_resh = mfb_iq_o2_drop.view(-1, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)  # N x 1 x 1000 x 5
+        mfb_o2_out = torch.squeeze(torch.sum(mfb_iq_o2_resh, 3))                            # N x 1000
         mfb_o2_out = torch.sqrt(F.relu(mfb_o2_out)) - torch.sqrt(F.relu(-mfb_o2_out))       # signed sqrt
+        #l2 norm
+        # mfb_o2_out_l2 = torch.sqrt(torch.sum(torch.pow(mfb_o2_out, 2), 1) + 1e-7)
+        # mfb_o2_out = torch.div(mfb_o2_out, torch.unsqueeze(mfb_o2_out_l2, 1).expand(self.batch_size, self.opt.MFB_OUT_DIM))
         mfb_o2_out = F.normalize(mfb_o2_out)
 
-        mfb_q_o3_proj = self.Linear_dataproj2(q_feat)                   # data_out (batch, 5000)
-        mfb_i_o3_proj = self.Linear_imgproj2(img_feat.float())          # img_feature (batch, 5000)
+        mfb_q_o3_proj = F.elu(self.Linear_dataproj2(q_feat))                   # data_out (N, 5000)
+        mfb_i_o3_proj = F.elu(self.Linear_imgproj2(img_feat.float()))          # img_feature (N, 5000)
         mfb_iq_o3_eltwise = torch.mul(mfb_q_o3_proj, mfb_i_o3_proj)
         mfb_iq_o3_eltwise = torch.mul(mfb_iq_o3_eltwise, mfb_iq_o2_drop)
         mfb_iq_o3_drop = self.Dropout2(mfb_iq_o3_eltwise)
         mfb_iq_o3_resh = mfb_iq_o3_drop.view(-1, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)
-        mfb_o3_out = torch.squeeze(torch.sum(mfb_iq_o3_resh, 3))                            # sum pool
-        mfb_o3_out = torch.sqrt(F.relu(mfb_o3_out)) - torch.sqrt(F.relu(-mfb_o3_out))       # signed sqrt
+        mfb_o3_out = torch.squeeze(torch.sum(mfb_iq_o3_resh, 3))                            # N x 1000
+        mfb_o3_out = torch.sqrt(F.relu(mfb_o3_out)) - torch.sqrt(F.relu(-mfb_o3_out))
+        #l2 norm
+        # mfb_o3_out_l2 = torch.sqrt(torch.sum(torch.pow(mfb_o3_out, 2), 1) + 1e-7)
+        # mfb_o3_out = torch.div(mfb_o3_out, torch.unsqueeze(mfb_o3_out_l2, 1).expand(self.batch_size, self.opt.MFB_OUT_DIM))
         mfb_o3_out = F.normalize(mfb_o3_out)
 
         mfb_o23_out = torch.cat((mfb_o2_out, mfb_o3_out), 1)        #200,2000     

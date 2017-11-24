@@ -124,9 +124,12 @@ def train():
             c_mean_loss = train_loss[iter_idx-opt.PRINT_INTERVAL:iter_idx].mean()/opt.BATCH_SIZE
             print('{}\tTrain Epoch: {}\tIter: {}\tLoss: {:.4f}'.format(
                         now, epoch, iter_idx, c_mean_loss))
-        if iter_idx % opt.VAL_INTERVAL == 0 and iter_idx != 0:
+        if iter_idx % opt.CHECKPOINT_INTERVAL == 0 and iter_idx != 0:
+            if not os.path.exists('./data'):
+                os.makedirs('./data')
             save_path = './data/mfb_baseline_iter_' + str(iter_idx) + '.pth'
             torch.save(model.state_dict(), save_path)
+        if iter_idx % opt.VAL_INTERVAL == 0 and iter_idx != 0:
             test_loss, acc_overall, acc_per_ques, acc_per_ans = exec_validation(model, opt, mode='val', folder=folder, it=iter_idx)
             print ('Test loss:', test_loss)
             print ('Accuracy:', acc_overall)
@@ -135,6 +138,8 @@ def train():
             best_result_idx = np.array([x[3] for x in results]).argmax()
             print ('Best accuracy of', results[best_result_idx][3], 'was at iteration', results[best_result_idx][0])
             drawgraph(results, folder, opt.MFB_FACTOR_NUM, opt.MFB_OUT_DIM, prefix='mfb_baseline')
+        if iter_idx % opt.TESTDEV_INTERVAL == 0 and iter_idx != 0:
+            exec_validation(model, opt, mode='test-dev', folder=folder, it=iter_idx)
 
 opt = config.parse_opt()
 torch.cuda.set_device(opt.TRAIN_GPU_ID)
@@ -164,11 +169,16 @@ train_Data = data_provider.VQADataset(opt.TRAIN_DATA_SPLITS, opt.BATCH_SIZE, fol
 train_Loader = torch.utils.data.DataLoader(dataset=train_Data, shuffle=True, pin_memory=True, num_workers=1)
 
 model = MfbBaseline(opt)
+if opt.RESUME:
+    print('==> Resuming from checkpoint..')
+    checkpoint = torch.load(opt.RESUME_PATH)
+    model.load_state_dict(checkpoint)
+else:
+    '''init model parameter'''
+    for name, param in model.named_parameters():
+        if name.find("bias") == -1:  # bias can't init by xavier
+            init.xavier_uniform(param)
 model.cuda()
-'''init model parameter'''
-for name, param in model.named_parameters(): 
-    if name.find("bias") == -1:        # bias can't init by xavier
-        init.xavier_uniform(param)
 optimizer = optim.Adam(model.parameters(), lr=opt.INIT_LERARNING_RATE)
 
 train()

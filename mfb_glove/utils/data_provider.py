@@ -3,6 +3,7 @@ import numpy as np
 import re, json, random
 import config
 import torch.utils.data as data
+import spacy
 
 QID_KEY_SEPARATOR = '/'
 ZERO_PAD = '_PAD'
@@ -25,6 +26,9 @@ class VQADataProvider:
         with open('./%s/adict.json'%folder,'r') as f:
             self.adict = json.load(f)
 
+        self.n_ans_vocabulary = len(self.adict)
+        self.nlp = spacy.load('en_vectors_web_lg')
+        self.glove_dict = {} # word -> glove vector
 
     @staticmethod
     def load_vqa_json(data_split):
@@ -166,6 +170,7 @@ class VQADataProvider:
         """
         qvec = np.zeros(max_length)
         cvec = np.zeros(max_length)
+        glove_matrix = np.zeros((max_length, GLOVE_EMBEDDING_SIZE))
         """  pad on the left   """
         # for i in xrange(max_length):
         #     if i < max_length - len(q_list):
@@ -183,11 +188,14 @@ class VQADataProvider:
                 pass
             else:
                 w = q_list[i]
+                if w not in self.glove_dict:
+                    self.glove_dict[w] = self.nlp(u'%s' % w).vector
+                glove_matrix[i] = self.glove_dict[w]
                 if self.vdict.has_key(w) is False:
                     w = ''
                 qvec[i] = self.vdict[w]
                 cvec[i] = 1 
-        return qvec, cvec
+        return qvec, cvec, glove_matrix
  
     def answer_to_vec(self, ans_str):
         """ Return answer id if the answer is included in vocabulary otherwise '' """
@@ -219,6 +227,7 @@ class VQADataProvider:
             avec = np.zeros(self.batchsize)
         else:
             avec = np.zeros((self.batchsize, self.opt.NUM_OUTPUT_UNITS))
+        glove_matrix = np.zeros((self.batchsize, self.max_length, GLOVE_EMBEDDING_SIZE))
 
         for i,qid in enumerate(qid_list):
 
@@ -229,7 +238,7 @@ class VQADataProvider:
 
             # convert question to vec
             q_list = VQADataProvider.seq_to_list(q_str)
-            t_qvec, t_cvec = self.qlist_to_vec(self.max_length, q_list)
+            t_qvec, t_cvec, t_glove_matrix = self.qlist_to_vec(self.max_length, q_list)
 
             try:
                 qid_split = qid.split(QID_KEY_SEPARATOR)
@@ -254,8 +263,9 @@ class VQADataProvider:
             cvec[i,...] = t_cvec
             ivec[i,...] = t_ivec
             avec[i,...] = t_avec
+            glove_matrix[i,...] = t_glove_matrix
 
-        return qvec, cvec, ivec, avec
+        return qvec, cvec, ivec, avec, glove_matrix
 
  
     def get_batch_vec(self):
@@ -321,9 +331,10 @@ class VQADataset(data.Dataset):
         if self.mode == 'val' or self.mode == 'test-dev' or self.mode == 'test':
             pass
         else:
-            word, cont, feature, answer, _, _, epoch = self.dp.get_batch_vec()
+            word, cont, feature, answer, glove_matrix, _, _, epoch = self.dp.get_batch_vec()
         word_length = np.sum(cont, axis=1)
-        return word, word_length, feature, answer, epoch
+        # glove_matrix = np.transpose(glove_matrix, (1,0,2))          #15,200,300
+        return word, word_length, feature, answer, glove_matrix, epoch
 
     def __len__(self):
         if self.mode == 'train':

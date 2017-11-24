@@ -114,7 +114,7 @@ def visualize_failures(stat_list,mode):
 
 def exec_validation(model, opt, mode, folder, it, visualize=False):
     model.eval()
-    criterion = nn.KLDivLoss(size_average=False)
+    criterion = nn.NLLLoss()
     dp = VQADataProvider(opt, batchsize=opt.VAL_BATCH_SIZE, mode='val', folder=folder)
     epoch = 0
     pred_list = []
@@ -132,8 +132,7 @@ def exec_validation(model, opt, mode, folder, it, visualize=False):
         img_feature = Variable(torch.from_numpy(t_img_feature)).cuda()
         label = Variable(torch.from_numpy(t_answer)).cuda()
         pred = model(data, word_length, img_feature ,'val')
-        loss = criterion(pred, label.float())
-        # loss = F.nll_loss(pred, label.long())
+        loss = criterion(pred, label.long())
         pred = (pred.data).cpu().numpy()
         loss = (loss.data).cpu().numpy()
 
