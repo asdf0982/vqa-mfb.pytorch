@@ -37,31 +37,14 @@ class MfhCoattGlove(nn.Module):
             self.batch_size = self.opt.VAL_BATCH_SIZE
         else:
             self.batch_size = self.opt.BATCH_SIZE
-        lstm1_pad_pad = Variable(torch.zeros(self.opt.MAX_WORDS_IN_QUESTION, self.batch_size, self.opt.LSTM_UNIT_NUM)).cuda()
-        """q sort p"""    
-        word_length, sort_idx = torch.sort(word_length, dim=0, descending=True)
-        _, unsort_idx = torch.sort(sort_idx)
-        data = data[sort_idx]                                       # N x T
-        glove = glove[sort_idx]                                     # N x T x 300
-        """d sort b"""
         data = torch.transpose(data, 1, 0)                          # type Longtensor,  T x N 
         glove = glove.permute(1, 0, 2)                              # type float, T x N x 300
         embed_tanh= F.tanh(self.Embedding(data))                    # T x N x 300
         concat_word_embed = torch.cat((embed_tanh, glove), 2)       # T x N x 600
-        concat_word_embed_pack = nn.utils.rnn.pack_padded_sequence(concat_word_embed, word_length.cpu().numpy(), batch_first=False)
-        lstm1, _ = self.LSTM(concat_word_embed_pack)                     # T x N x 1024
-        lstm1_pad = nn.utils.rnn.pad_packed_sequence(lstm1, batch_first=False) # (max lenth in each batch x N x 1024)
-        lstm1_pad = lstm1_pad[0]
-        batch_max_len = lstm1_pad.size()[0]
-        need_len = self.opt.MAX_WORDS_IN_QUESTION - batch_max_len
-        if need_len!=0:
-            temp_pad = Variable(torch.zeros(need_len, self.batch_size, self.opt.LSTM_UNIT_NUM)).cuda()
-            lstm1_pad = torch.cat((lstm1_pad, temp_pad), dim=0)     # T x N x 1024
-        """unsort"""
-        lstm1_resh = lstm1_pad.permute(1, 2, 0)                     # N x 1024 x T
-        lstm1_unsort = lstm1_resh[unsort_idx]
-        lstm1_droped = self.Dropout_L(lstm1_unsort)
-        lstm1_resh2 = torch.unsqueeze(lstm1_droped, 3)              # N x 1024 x T x 1
+        lstm1, _ = self.LSTM(concat_word_embed)                     # T x N x 1024
+        lstm1_droped = self.Dropout_L(lstm1)
+        lstm1_resh = lstm1_droped.permute(1, 2, 0)                     # N x 1024 x T
+        lstm1_resh2 = torch.unsqueeze(lstm1_resh, 3)              # N x 1024 x T x 1
         '''
         Question Attention
         '''        
@@ -130,6 +113,7 @@ class MfhCoattGlove(nn.Module):
         mfb_q_o3_proj = self.Linear3_q_proj(q_feat_resh)               # N x 5000
         mfb_i_o3_proj = self.Linear3_i_proj(iatt_feature_concat)        # N x 5000
         mfb_iq_o3_eltwise = torch.mul(mfb_q_o3_proj, mfb_i_o3_proj)          # N x 5000
+        mfb_iq_o3_eltwise = torch.mul(mfb_iq_o3_eltwise, mfb_iq_o2_drop)
         mfb_iq_o3_drop = self.Dropout_M(mfb_iq_o3_eltwise)
         mfb_iq_o3_resh = mfb_iq_o3_drop.view(self.batch_size, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)   # N x 1 x 1000 x 5
         mfb_iq_o3_sumpool = torch.sum(mfb_iq_o3_resh, 3, keepdim=True)    # N x 1 x 1000 x 1

@@ -341,4 +341,4 @@ class VQADataset(data.Dataset):
         return word, word_length, feature, answer, glove_matrix, epoch
 
     def __len__(self):
-        return 100000
+        return 150000

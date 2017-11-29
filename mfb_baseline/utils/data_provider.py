@@ -327,4 +327,4 @@ class VQADataset(data.Dataset):
 
     def __len__(self):
         if self.mode == 'train':
-            return 100000
+            return 150000   # this number had better bigger than "maxiterations" which you set in config

@@ -16,7 +16,8 @@ import utils.data_provider as data_provider
 from utils.data_provider import VQADataProvider
 from utils.eval_utils import exec_validation, drawgraph
 import json
-import datetime 
+import datetime
+from tensorboardX import SummaryWriter 
 sys.path.append(config.VQA_TOOLS_PATH)
 sys.path.append(config.VQA_EVAL_TOOLS_PATH)
 from vqaTools.vqa import VQA
@@ -122,6 +123,8 @@ def train():
         if iter_idx % opt.PRINT_INTERVAL == 0 and iter_idx != 0:
             now = str(datetime.datetime.now())
             c_mean_loss = train_loss[iter_idx-opt.PRINT_INTERVAL:iter_idx].mean()/opt.BATCH_SIZE
+            writer.add_scalar('mfb_baseline/train_loss', c_mean_loss, iter_idx)
+            writer.add_scalar('mfb_baseline/lr', optimizer.param_groups[0]['lr'], iter_idx)
             print('{}\tTrain Epoch: {}\tIter: {}\tLoss: {:.4f}'.format(
                         now, epoch, iter_idx, c_mean_loss))
         if iter_idx % opt.CHECKPOINT_INTERVAL == 0 and iter_idx != 0:
@@ -131,6 +134,8 @@ def train():
             torch.save(model.state_dict(), save_path)
         if iter_idx % opt.VAL_INTERVAL == 0 and iter_idx != 0:
             test_loss, acc_overall, acc_per_ques, acc_per_ans = exec_validation(model, opt, mode='val', folder=folder, it=iter_idx)
+            writer.add_scalar('mfb_baseline/val_loss', test_loss, iter_idx)
+            writer.add_scalar('mfb_baseline/accuracy', acc_overall, iter_idx)
             print ('Test loss:', test_loss)
             print ('Accuracy:', acc_overall)
             print ('Test per ans', acc_per_ans)
@@ -143,7 +148,8 @@ def train():
 
 opt = config.parse_opt()
 torch.cuda.set_device(opt.TRAIN_GPU_ID)
-
+# torch.cuda.manual_seed(opt.SEED)
+writer = SummaryWriter()
 folder = 'mfb_baseline_%s'%opt.TRAIN_DATA_SPLITS
 if not os.path.exists('./%s'%folder):
     os.makedirs('./%s'%folder)
@@ -176,9 +182,12 @@ if opt.RESUME:
 else:
     '''init model parameter'''
     for name, param in model.named_parameters():
-        if name.find("bias") == -1:  # bias can't init by xavier
-            init.xavier_uniform(param)
+        if 'bias' in name:  # bias can't init by xavier
+            init.constant(param, 0.0)
+        elif 'weight' in name:
+            init.kaiming_uniform(param)
 model.cuda()
 optimizer = optim.Adam(model.parameters(), lr=opt.INIT_LERARNING_RATE)
 
 train()
+writer.close()

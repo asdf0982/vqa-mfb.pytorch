@@ -126,20 +126,22 @@ def exec_validation(model, opt, mode, folder, it, visualize=False):
     while epoch == 0:
         t_word, word_length, t_img_feature, t_answer, t_glove_matrix, t_qid_list, t_iid_list, epoch = dp.get_batch_vec() 
         word_length = np.sum(word_length,axis=1)
-
         data = Variable(torch.from_numpy(t_word)).cuda().long()
         word_length = torch.from_numpy(word_length).cuda()
         img_feature = Variable(torch.from_numpy(t_img_feature)).cuda().float()
         label = Variable(torch.from_numpy(t_answer)).cuda()
         glove = Variable(torch.from_numpy(t_glove_matrix)).cuda().float()
         pred = model(data, word_length, img_feature, glove, 'val')
-        loss = criterion(pred, label.long())
         pred = (pred.data).cpu().numpy()
-        loss = (loss.data).cpu().numpy()
-
+        if mode == 'test-dev' or 'test':
+            pass
+        else:
+            loss = criterion(pred, label.long())
+            loss = (loss.data).cpu().numpy()
+            testloss_list.append(loss)
         t_pred_list = np.argmax(pred, axis=1)
         t_pred_str = [dp.vec_to_answer(pred_symbol) for pred_symbol in t_pred_list]
-        testloss_list.append(loss)
+
         for qid, iid, ans, pred in zip(t_qid_list, t_iid_list, t_answer.tolist(), t_pred_str):
             pred_list.append((pred,int(dp.getStrippedQuesId(qid))))
             if visualize:
@@ -172,10 +174,9 @@ def exec_validation(model, opt, mode, folder, it, visualize=False):
     final_list=[]
     for ans,qid in deduped:
         final_list.append({u'answer': ans, u'question_id': qid})
- 
-    mean_testloss = np.array(testloss_list).mean()
 
     if mode == 'val':
+        mean_testloss = np.array(testloss_list).mean()
         valFile = './%s/val2015_resfile'%folder
         with open(valFile, 'w') as f:
             json.dump(final_list, f)
