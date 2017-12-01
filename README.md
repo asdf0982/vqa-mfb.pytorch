@@ -10,6 +10,8 @@ Python 2.7, pytorch 0.2, torchvision 0.1.9, [tensorboardX](https://github.com/la
 |   Datasets\Models    | MFB | MFH  | MFH+CoAtt+GloVe (FRCN img features, test-dev) |
 |:-----------------:|:-----------------:|:-----------------:|:-----------------:|
 | VQA-1.0   |58.75%    | 59.15%  | **68.78%** |
+![Figure 2: MFB-baseline result](https://github.com/asdf0982/vqa-mfb.pytorch/raw/master/imgs/mfb_baseline.png)
+![Figure 3: MFH-baseline result](https://github.com/asdf0982/vqa-mfb.pytorch/raw/master/imgs/mfh_baseline.png)
 ## Training from Scratch
 `$ python train_*.py`
 - Most of the hyper-parameters and configrations with comments are defined in the `config.py` file.
