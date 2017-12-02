@@ -11,9 +11,12 @@ The official implementation is based on pycaffe is available [here](https://gith
 ## Requirements
 Python 2.7, pytorch 0.2, torchvision 0.1.9, [tensorboardX](https://github.com/lanpa/tensorboard-pytorch)
 ## Result
-|   Datasets\Models    | MFB | MFH  | MFH+CoAtt+GloVe (FRCN img features, test-dev) |
+|   Datasets\Models    | MFB | MFH  | MFH+CoAtt+GloVe (FRCN img features) |
 |:-----------------:|:-----------------:|:-----------------:|:-----------------:|
 | VQA-1.0   |58.75%    | 59.15%  | **68.78%** |
+
+- MFB and MFH refer to MFB-baseline and MFH-baseline, respectively.
+- The results of MFB and MFH are trained with train sets, tested with val sets, using ResNet152 pool5 features. The result of MFH+CoAtt+GloVe is trained with train+val sets, tested with test-dev sets.
 
 ![Figure 2: MFB-baseline result](https://github.com/asdf0982/vqa-mfb.pytorch/raw/master/imgs/mfb_baseline.png)
 

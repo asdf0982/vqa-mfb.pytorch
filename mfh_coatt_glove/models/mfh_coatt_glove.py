@@ -6,9 +6,9 @@ import sys
 sys.path.append("..")
 
 
-class MfbCoattGlove(nn.Module):
+class mfh_coatt_glove(nn.Module):
     def __init__(self, opt):
-        super(MfbCoattGlove, self).__init__()
+        super(mfh_coatt_glove, self).__init__()
         self.opt = opt
         self.JOINT_EMB_SIZE = opt.MFB_FACTOR_NUM * opt.MFB_OUT_DIM
         self.Embedding = nn.Embedding(opt.quest_vob_size, 300)
@@ -17,8 +17,10 @@ class MfbCoattGlove(nn.Module):
 
         self.Linear1_q_proj = nn.Linear(opt.LSTM_UNIT_NUM*opt.NUM_QUESTION_GLIMPSE, self.JOINT_EMB_SIZE)
         self.Linear2_q_proj = nn.Linear(opt.LSTM_UNIT_NUM*opt.NUM_QUESTION_GLIMPSE, self.JOINT_EMB_SIZE)
-        self.Linear_i_proj = nn.Linear(opt.IMAGE_CHANNEL*opt.NUM_IMG_GLIMPSE, self.JOINT_EMB_SIZE)
-        self.Conv_i_proj = nn.Conv2d(opt.IMAGE_CHANNEL, self.JOINT_EMB_SIZE, 1)
+        self.Linear3_q_proj = nn.Linear(opt.LSTM_UNIT_NUM*opt.NUM_QUESTION_GLIMPSE, self.JOINT_EMB_SIZE)
+        self.Conv1_i_proj = nn.Conv2d(opt.IMAGE_CHANNEL, self.JOINT_EMB_SIZE, 1)
+        self.Linear2_i_proj = nn.Linear(opt.IMAGE_CHANNEL*opt.NUM_IMG_GLIMPSE, self.JOINT_EMB_SIZE)
+        self.Linear3_i_proj = nn.Linear(opt.IMAGE_CHANNEL*opt.NUM_IMG_GLIMPSE, self.JOINT_EMB_SIZE)
 
         self.Dropout_L = nn.Dropout(p=opt.LSTM_DROPOUT_RATIO)
         self.Dropout_M = nn.Dropout(p=opt.MFB_DROPOUT_RATIO)
@@ -27,23 +29,22 @@ class MfbCoattGlove(nn.Module):
         self.Conv1_Iatt = nn.Conv2d(1000, 512, 1)
         self.Conv2_Iatt = nn.Conv2d(512, opt.NUM_IMG_GLIMPSE, 1)
 
-        self.Linear_predict = nn.Linear(opt.MFB_OUT_DIM, opt.NUM_OUTPUT_UNITS)
+        self.Linear_predict = nn.Linear(opt.MFB_OUT_DIM*2, opt.NUM_OUTPUT_UNITS)
 
 
     def forward(self, data, word_length, img_feature, glove, mode):
-        if mode == 'val':
+        if mode == 'val' or mode == 'test' or mode == 'test-dev':
             self.batch_size = self.opt.VAL_BATCH_SIZE
         else:
             self.batch_size = self.opt.BATCH_SIZE
-
         data = torch.transpose(data, 1, 0)                          # type Longtensor,  T x N 
         glove = glove.permute(1, 0, 2)                              # type float, T x N x 300
         embed_tanh= F.tanh(self.Embedding(data))                    # T x N x 300
         concat_word_embed = torch.cat((embed_tanh, glove), 2)       # T x N x 600
         lstm1, _ = self.LSTM(concat_word_embed)                     # T x N x 1024
         lstm1_droped = self.Dropout_L(lstm1)
-        lstm1_resh = lstm1_droped.permute(1, 2, 0)                  # N x 1024 x T
-        lstm1_resh2 = torch.unsqueeze(lstm1_resh, 3)                # N x 1024 x T x 1
+        lstm1_resh = lstm1_droped.permute(1, 2, 0)                     # N x 1024 x T
+        lstm1_resh2 = torch.unsqueeze(lstm1_resh, 3)              # N x 1024 x T x 1
         '''
         Question Attention
         '''        
@@ -67,9 +68,7 @@ class MfbCoattGlove(nn.Module):
         i_feat_resh = torch.unsqueeze(img_feature, 3)                                   # N x 2048 x 100 x 1
         iatt_q_proj = self.Linear1_q_proj(q_feat_resh)                                  # N x 5000
         iatt_q_resh = iatt_q_proj.view(self.batch_size, self.JOINT_EMB_SIZE, 1, 1)      # N x 5000 x 1 x 1
-        # iatt_q_tile = iatt_q_resh.expand(self.batch_size, self.JOINT_EMB_SIZE, 100, 1)  # N x 5000 x 100 x 1
-        iatt_i_conv = self.Conv_i_proj(i_feat_resh)                                     # N x 5000 x 100 x 1
-        # iatt_iq_eltwise = torch.mul(iatt_q_tile, iatt_i_conv)                           # N x 5000 x 100 x 1
+        iatt_i_conv = self.Conv1_i_proj(i_feat_resh)                                     # N x 5000 x 100 x 1
         iatt_iq_eltwise = iatt_q_resh * iatt_i_conv
         iatt_iq_droped = self.Dropout_M(iatt_iq_eltwise)                                # N x 5000 x 100 x 1
         iatt_iq_permute1 = iatt_iq_droped.permute(0,2,1,3).contiguous()                 # N x 100 x 5000 x 1
@@ -97,18 +96,31 @@ class MfbCoattGlove(nn.Module):
         iatt_feature_concat = torch.cat(iatt_feature_list, 1)       # N x 4096 x 1 x 1
         iatt_feature_concat = torch.squeeze(iatt_feature_concat)    # N x 4096
         '''
-        Fine-grained Image-Question MFB fusion
+        Fine-grained Image-Question MFH fusion
         '''
-        mfb_q_proj = self.Linear2_q_proj(q_feat_resh)               # N x 5000
-        mfb_i_proj = self.Linear_i_proj(iatt_feature_concat)        # N x 5000
-        mfb_iq_eltwise = torch.mul(mfb_q_proj, mfb_i_proj)          # N x 5000
-        mfb_iq_drop = self.Dropout_M(mfb_iq_eltwise)
-        mfb_iq_resh = mfb_iq_drop.view(self.batch_size, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)   # N x 1 x 1000 x 5
-        mfb_iq_sumpool = torch.sum(mfb_iq_resh, 3, keepdim=True)    # N x 1 x 1000 x 1
-        mfb_out = torch.squeeze(mfb_iq_sumpool)                     # N x 1000
-        mfb_sign_sqrt = torch.sqrt(F.relu(mfb_out)) - torch.sqrt(F.relu(-mfb_out))
-        mfb_l2 = F.normalize(mfb_sign_sqrt)
-        prediction = self.Linear_predict(mfb_l2)
+        mfb_q_o2_proj = self.Linear2_q_proj(q_feat_resh)               # N x 5000
+        mfb_i_o2_proj = self.Linear2_i_proj(iatt_feature_concat)        # N x 5000
+        mfb_iq_o2_eltwise = torch.mul(mfb_q_o2_proj, mfb_i_o2_proj)          # N x 5000
+        mfb_iq_o2_drop = self.Dropout_M(mfb_iq_o2_eltwise)
+        mfb_iq_o2_resh = mfb_iq_o2_drop.view(self.batch_size, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)   # N x 1 x 1000 x 5
+        mfb_iq_o2_sumpool = torch.sum(mfb_iq_o2_resh, 3, keepdim=True)    # N x 1 x 1000 x 1
+        mfb_o2_out = torch.squeeze(mfb_iq_o2_sumpool)                     # N x 1000
+        mfb_o2_sign_sqrt = torch.sqrt(F.relu(mfb_o2_out)) - torch.sqrt(F.relu(-mfb_o2_out))
+        mfb_o2_l2 = F.normalize(mfb_o2_sign_sqrt)
+
+        mfb_q_o3_proj = self.Linear3_q_proj(q_feat_resh)               # N x 5000
+        mfb_i_o3_proj = self.Linear3_i_proj(iatt_feature_concat)        # N x 5000
+        mfb_iq_o3_eltwise = torch.mul(mfb_q_o3_proj, mfb_i_o3_proj)          # N x 5000
+        mfb_iq_o3_eltwise = torch.mul(mfb_iq_o3_eltwise, mfb_iq_o2_drop)
+        mfb_iq_o3_drop = self.Dropout_M(mfb_iq_o3_eltwise)
+        mfb_iq_o3_resh = mfb_iq_o3_drop.view(self.batch_size, 1, self.opt.MFB_OUT_DIM, self.opt.MFB_FACTOR_NUM)   # N x 1 x 1000 x 5
+        mfb_iq_o3_sumpool = torch.sum(mfb_iq_o3_resh, 3, keepdim=True)    # N x 1 x 1000 x 1
+        mfb_o3_out = torch.squeeze(mfb_iq_o3_sumpool)                     # N x 1000
+        mfb_o3_sign_sqrt = torch.sqrt(F.relu(mfb_o3_out)) - torch.sqrt(F.relu(-mfb_o3_out))
+        mfb_o3_l2 = F.normalize(mfb_o3_sign_sqrt)
+
+        mfb_o23_l2 = torch.cat((mfb_o2_l2, mfb_o3_l2), 1)               # N x 2000
+        prediction = self.Linear_predict(mfb_o23_l2)
         prediction = F.log_softmax(prediction)
 
         return prediction

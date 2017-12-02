@@ -11,7 +11,7 @@ import numpy as np
 import os
 import sys
 import config
-from models.MfhCoattGlove import MfhCoattGlove
+from models.mfh_coatt_glove import mfh_coatt_glove
 import utils.data_provider as data_provider
 from utils.data_provider import VQADataProvider
 from utils.eval_utils import exec_validation, drawgraph
@@ -177,7 +177,7 @@ opt.ans_vob_size = len(answer_vocab)
 train_Data = data_provider.VQADataset(opt.TRAIN_DATA_SPLITS, opt.BATCH_SIZE, folder, opt)
 train_Loader = torch.utils.data.DataLoader(dataset=train_Data, shuffle=False, pin_memory=True, num_workers=1)
 
-model = MfhCoattGlove(opt)
+model = mfh_coatt_glove(opt)
 if opt.RESUME:
     print('==> Resuming from checkpoint..')
     checkpoint = torch.load(opt.RESUME_PATH)

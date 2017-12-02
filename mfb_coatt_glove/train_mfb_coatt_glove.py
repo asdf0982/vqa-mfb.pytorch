@@ -11,12 +11,13 @@ import numpy as np
 import os
 import sys
 import config
-from models.MfbCoattGlove import MfbCoattGlove
+from models.mfb_coatt_glove import mfb_coatt_glove
 import utils.data_provider as data_provider
 from utils.data_provider import VQADataProvider
 from utils.eval_utils import exec_validation, drawgraph
 import json
-import datetime 
+import datetime
+from tensorboardX import SummaryWriter
 sys.path.append(config.VQA_TOOLS_PATH)
 sys.path.append(config.VQA_EVAL_TOOLS_PATH)
 from vqaTools.vqa import VQA
@@ -125,6 +126,8 @@ def train():
         if iter_idx % opt.PRINT_INTERVAL == 0 and iter_idx != 0:
             now = str(datetime.datetime.now())
             c_mean_loss = train_loss[iter_idx-opt.PRINT_INTERVAL:iter_idx].mean()/opt.BATCH_SIZE
+            writer.add_scalar('mfb_coatt_glove/train_loss', c_mean_loss, iter_idx)
+            writer.add_scalar('mfb_coatt_glove/lr', optimizer.param_groups[0]['lr'], iter_idx)            
             print('{}\tTrain Epoch: {}\tIter: {}\tLoss: {:.4f}'.format(
                         now, epoch, iter_idx, c_mean_loss))
         if iter_idx % opt.CHECKPOINT_INTERVAL == 0 and iter_idx != 0:
@@ -134,6 +137,8 @@ def train():
             torch.save(model.state_dict(), save_path)
         if iter_idx % opt.VAL_INTERVAL == 0 and iter_idx != 0:
             test_loss, acc_overall, acc_per_ques, acc_per_ans = exec_validation(model, opt, mode='val', folder=folder, it=iter_idx)
+            writer.add_scalar('mfb_coatt_glove/val_loss', test_loss, iter_idx)
+            writer.add_scalar('mfb_coatt_glove/accuracy', acc_overall, iter_idx)
             print ('Test loss:', test_loss)
             print ('Accuracy:', acc_overall)
             print ('Test per ans', acc_per_ans)
@@ -146,7 +151,7 @@ def train():
             
 opt = config.parse_opt()
 torch.cuda.set_device(opt.TRAIN_GPU_ID)
-
+writer = SummaryWriter()
 folder = 'mfb_coatt_glove_%s'%opt.TRAIN_DATA_SPLITS
 if not os.path.exists('./%s'%folder):
     os.makedirs('./%s'%folder)
@@ -171,7 +176,7 @@ opt.ans_vob_size = len(answer_vocab)
 train_Data = data_provider.VQADataset(opt.TRAIN_DATA_SPLITS, opt.BATCH_SIZE, folder, opt)
 train_Loader = torch.utils.data.DataLoader(dataset=train_Data, shuffle=True, pin_memory=True, num_workers=1)
 
-model = MfbCoattGlove(opt)
+model = mfb_coatt_glove(opt)
 if opt.RESUME:
     print('==> Resuming from checkpoint..')
     checkpoint = torch.load(opt.RESUME_PATH)
@@ -185,3 +190,4 @@ model.cuda()
 optimizer = optim.Adam(model.parameters(), lr=opt.INIT_LERARNING_RATE)
 
 train()
+writer.close()

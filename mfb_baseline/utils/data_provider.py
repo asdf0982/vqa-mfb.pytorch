@@ -309,9 +309,9 @@ class VQADataProvider:
 class VQADataset(data.Dataset):
 
     def __init__(self, mode, batchsize, folder, opt):
-        self.batchsize = batchsize #json.loads(self.param_str)['batchsize'] # config.batchsize = 64
-        self.mode = mode # json.loads(self.param_str)['mode'] # config, "train+val"
-        self.folder = folder # json.loads(self.param_str)['folder'] # 'mfb_baseline_train+val'
+        self.batchsize = batchsize 
+        self.mode = mode 
+        self.folder = folder 
         if self.mode == 'val' or self.mode == 'test-dev' or self.mode == 'test':
             pass
         else:

@@ -337,7 +337,6 @@ class VQADataset(data.Dataset):
         else:
             word, cont, feature, answer, glove_matrix, _, _, epoch = self.dp.get_batch_vec()
         word_length = np.sum(cont, axis=1)
-        # glove_matrix = np.transpose(glove_matrix, (1,0,2))          # T, N, 300
         return word, word_length, feature, answer, glove_matrix, epoch
 
     def __len__(self):
